@@ -188,6 +188,7 @@ static void Command(IndirectDeviceContext& context,const Modes& modes) {
     HandleSetModesCommand(param.data());
 }
 
+/** @brief Exercise production create/refresh/lifecycle bodies with deterministic API failures. */
 int main() {
     int passed=0,failed=0;
     auto test=[&](const char* name,auto body) {

@@ -341,6 +341,7 @@ static vector<BYTE> LoadEdid(const string &filePath, bool &builtIn)
 	return hardcodedEdid;
 }
 
+/** @brief Load custom/profile EDID and publish its built-in provenance with the template. */
 int LoadKnownMonitorEdid()
 {
 	bool builtIn = true;
@@ -376,11 +377,13 @@ int LoadKnownMonitorEdid()
 	return 0;
 }
 
+/** @brief Read template provenance while the caller holds the EDID map lock. */
 bool KnownMonitorEdidIsBuiltIn()
 {
 	return gKnownEdidIsBuiltIn.load();
 }
 
+/** @brief Apply a per-monitor create request to built-in EDID bytes and log fallback reasons. */
 void ApplyRequestedEdidResolution(vector<BYTE> &edid, const vector<tuple<int, int, int, int>> &modes, bool isBuiltIn, const std::wstring &requested)
 {
 	if (!isBuiltIn) return;

@@ -16,6 +16,7 @@ enum class NativeResolutionResult {
     Default, Applied, CustomEdid, InvalidEdid, InvalidResolution, UnsupportedMode, UnencodableTiming
 };
 
+/** @brief Parse canonical WIDTHxHEIGHT without overflowing the EDID dimension fields. */
 inline bool ParseNativeResolution(const std::wstring& value, int& width, int& height) {
     const auto separator = value.find(L'x');
     if (separator == value.npos || separator == 0 || separator + 1 == value.size()) return false;
@@ -31,6 +32,11 @@ inline bool ParseNativeResolution(const std::wstring& value, int& width, int& he
     return dimension(value.substr(0, separator), width) && dimension(value.substr(separator + 1), height);
 }
 
+/**
+ * @brief Apply the encodable supported timing nearest 60 Hz to a built-in EDID.
+ * @details Lower refresh wins ties. Default/invalid requests restore the original
+ *          1080p timing; valid custom EDIDs and all non-timing data remain untouched.
+ */
 inline NativeResolutionResult ApplyNativeResolution(std::vector<BYTE>& edid, bool builtIn,
                                   const std::wstring& requested,
                                   const std::vector<std::tuple<int, int, int, int>>& modes) {

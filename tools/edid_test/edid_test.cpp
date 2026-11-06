@@ -15,6 +15,7 @@ void Require(bool condition, const char* message) {
 
 using Bytes = std::vector<BYTE>;
 
+/** @brief Verify native timing selection, limits, source precedence and non-timing preservation. */
 void CheckNativeResolution(VddEdid::Profile profile) {
     using Result = VddEdid::NativeResolutionResult;
     using Modes = std::vector<std::tuple<int, int, int, int>>;
@@ -254,6 +255,7 @@ void CheckLuminance(VddEdid::Profile profile) {
 }
 }
 
+/** @brief Run EDID regressions for both built-in profiles and Dolby variants. */
 int main(int argc, char** argv) {
     try {
         const std::string outputDirectory = argc > 1 ? argv[1] : "";

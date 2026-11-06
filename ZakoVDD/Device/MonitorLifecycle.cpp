@@ -21,6 +21,11 @@ using namespace Microsoft::IndirectDisp;
 
 void CreateTargetMode2(IDDCX_TARGET_MODE2 &Mode, UINT Width, UINT Height, UINT VSyncNum, UINT VSyncDen);
 
+/**
+ * @brief Create a monitor with source-aware cached EDID and a per-monitor native-size request.
+ * @details Retain creation parameters for recreation, and discard only new cache
+ *          entries on partial failure. Duplicate creates leave the live monitor intact.
+ */
 void IndirectDeviceContext::CreateMonitor(unsigned int index, const GUID *pClientGuid, float maxNits, float minNits, float maxFALL, float widthCm, float heightCm, const std::wstring &edidNativeResolution)
 {
 	std::lock_guard<std::recursive_mutex> lock(m_monitorsMutex);
@@ -416,6 +421,7 @@ IndirectDeviceContext::MonitorRecreationResult IndirectDeviceContext::RecreateAl
 	return result;
 }
 
+/** @brief Re-enumerate using retained creation parameters, preserving them across failed retries. */
 bool IndirectDeviceContext::RecreateMonitor(unsigned int index)
 {
 	std::lock_guard<std::recursive_mutex> lock(m_monitorsMutex);

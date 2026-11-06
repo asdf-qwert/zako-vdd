@@ -294,6 +294,11 @@ void HandleSetDisplayCountCommand(wchar_t *param)
 	ReloadDriver();
 }
 
+/**
+ * @brief Parse per-monitor HDR/physical-size groups and the optional third EDID-size group.
+ * @details Legacy requests use the original native timing. Each monitor token owns
+ *          its request; native-size validation is deferred to EDID creation.
+ */
 void HandleCreateMonitorCommand(wchar_t *param)
 {
 	if (g_GlobalDevice == nullptr)
