@@ -327,6 +327,7 @@ void HandleCreateMonitorCommand(wchar_t *param)
 		float maxFALL = 1000.0f;
 		float widthCm = 0.0f;
 		float heightCm = 0.0f;
+		wstring edidNativeResolution = L"default";
 	};
 	vector<MonitorParams> monitorParams;
 
@@ -362,6 +363,14 @@ void HandleCreateMonitorCommand(wchar_t *param)
 					}
 
 					wstring innerStr = settingsStr.substr(openBracket + 1, closeBracket - openBracket - 1);
+					// Optional third group; older senders omit it and retain the original EDID.
+					if (bracketIndex == 2 && innerStr.rfind(L"edid=", 0) == 0)
+					{
+						mp.edidNativeResolution = innerStr.substr(5);
+						bracketIndex++;
+						pos = closeBracket + 1;
+						continue;
+					}
 					wstringstream valueStream(innerStr);
 					wstring val;
 					vector<float> values;
@@ -439,6 +448,7 @@ void HandleCreateMonitorCommand(wchar_t *param)
 		const GUID *pGuid = nullptr;
 		float maxNits = 1000.0f, minNits = 0.0001f, maxFALL = 1000.0f;
 		float widthCm = 0.0f, heightCm = 0.0f;
+		wstring edidNativeResolution = L"default";
 
 		if (i < monitorParams.size())
 		{
@@ -452,8 +462,9 @@ void HandleCreateMonitorCommand(wchar_t *param)
 			maxFALL = mp.maxFALL;
 			widthCm = mp.widthCm;
 			heightCm = mp.heightCm;
+			edidNativeResolution = mp.edidNativeResolution;
 		}
-		pContext->pContext->CreateMonitor(i, pGuid, maxNits, minNits, maxFALL, widthCm, heightCm);
+		pContext->pContext->CreateMonitor(i, pGuid, maxNits, minNits, maxFALL, widthCm, heightCm, edidNativeResolution);
 	}
 }
 

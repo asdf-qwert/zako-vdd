@@ -19,3 +19,5 @@ Extract 'ZakoVDD/Device/IndirectDeviceContext.h' 'struct MonitorCreationParams' 
 Extract 'ZakoVDD/Util/RefreshRate.cpp' '#include <cmath>' '' 'refresh.inc'
 Extract 'ZakoVDD/Device/MonitorState.h' 'struct ClientEdid' 'extern std::map<GUID, ClientEdid' 'client_edid.inc'
 Extract 'ZakoVDD/Edid/Edid.cpp' 'bool KnownMonitorEdidIsBuiltIn(' '' 'edid_resolution.inc'
+
+Extract 'ZakoVDD/Control/CommandHandlers.cpp' 'void HandleCreateMonitorCommand(' 'void HandleDestroyMonitorCommand(' 'create_command.inc'

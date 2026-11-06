@@ -381,20 +381,18 @@ bool KnownMonitorEdidIsBuiltIn()
 	return gKnownEdidIsBuiltIn.load();
 }
 
-void ApplyConfiguredEdidResolution(vector<BYTE> &edid, const vector<tuple<int, int, int, int>> &modes, bool isBuiltIn)
+void ApplyRequestedEdidResolution(vector<BYTE> &edid, const vector<tuple<int, int, int, int>> &modes, bool isBuiltIn, const std::wstring &requested)
 {
 	if (!isBuiltIn) return;
-	// Read at monitor creation so XML changes apply on reconnect without a
-	// driver reload, including clients whose EDID is already cached.
-	const auto requested = GetStringSetting(L"EdidNativeResolution");
+	// Apply the per-monitor request even when this client already has a cached EDID.
 	const auto result = VddEdid::ApplyNativeResolution(edid, true, requested, modes);
 	using Result = VddEdid::NativeResolutionResult;
 	if (result == Result::InvalidResolution)
-		VDD_LOG_WARNING("Invalid EdidNativeResolution: expected default or WIDTHxHEIGHT with dimensions 1..4095; using original 1080p EDID");
+		VDD_LOG_WARNING("Invalid CREATEMONITOR EDID native resolution: expected default or WIDTHxHEIGHT with dimensions 1..4095; using original 1080p EDID");
 	else if (result == Result::UnsupportedMode)
-		VDD_LOG_WARNING("EdidNativeResolution is not in the driver mode list; using original 1080p EDID");
+		VDD_LOG_WARNING("CREATEMONITOR EDID native resolution is not in the driver mode list; using original 1080p EDID");
 	else if (result == Result::UnencodableTiming)
-		VDD_LOG_WARNING("EdidNativeResolution has no refresh rate encodable in an EDID detailed timing; using original 1080p EDID");
+		VDD_LOG_WARNING("CREATEMONITOR EDID native resolution has no refresh rate encodable in an EDID detailed timing; using original 1080p EDID");
 	VDD_LOG_INFO_STREAM("Built-in EDID native resolution: " <<
 		(result == Result::Applied ? WStringToString(requested) : "default (1920x1080)"));
 }

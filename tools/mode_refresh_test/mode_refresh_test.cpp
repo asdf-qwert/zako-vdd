@@ -51,7 +51,8 @@ static uintptr_t nextHandle = 100;
 static map<IDDCX_MONITOR, unsigned> handleIndex;
 static atomic<bool> gKnownEdidIsBuiltIn{true};
 static wstring requestedEdidResolution;
-static wstring GetStringSetting(const wstring&) { return requestedEdidResolution; }
+static unsigned int numVirtualDisplays = 1;
+static map<unsigned, vector<BYTE>> submittedEdids;
 static set<unsigned> failArrival;
 static set<unsigned> throwOnCreate;
 static set<unsigned> nullCreateHandle;
@@ -88,6 +89,8 @@ static BYTE CalculateEdidChecksum(const vector<BYTE>&) { return 0; }
 static LONG IddCxMonitorCreate(void*,const IDARG_IN_MONITORCREATE* args,IDARG_OUT_MONITORCREATE* output) {
     const auto index=args->pMonitorInfo->ConnectorIndex;
     createCalls.push_back(index);
+    const auto& description = args->pMonitorInfo->MonitorDescription;
+    submittedEdids[index] = vector<BYTE>(description.pData, description.pData + description.DataSize);
     if(throwOnCreate.count(index)) throw runtime_error("injected create exception");
     if(failCreate.count(index)) return STATUS_UNSUCCESSFUL;
     if(nullCreateHandle.count(index)) { output->MonitorObject=nullptr; return STATUS_SUCCESS; }
@@ -144,7 +147,7 @@ public:
     bool DestroyMonitor(unsigned index);
     void DestroyAllMonitors();
     MonitorRecreationResult RecreateAllMonitors();
-    void CreateMonitor(unsigned index,const GUID* guid=nullptr,float maxNits=1000,float minNits=0.0001f,float maxFALL=0,float widthCm=0,float heightCm=0);
+    void CreateMonitor(unsigned index,const GUID* guid=nullptr,float maxNits=1000,float minNits=0.0001f,float maxFALL=0,float widthCm=0,float heightCm=0,const wstring& edidNativeResolution=L"default");
     void Seed(unsigned index,const Modes& modes) {
         auto handle = reinterpret_cast<IDDCX_MONITOR>(++nextHandle);
         m_Monitors[index]=handle;
@@ -162,6 +165,7 @@ static Wrapper* WdfObjectGet_IndirectDeviceContextWrapper(void*) { return &wrapp
 #include "edid_resolution.inc"
 #include "lifecycle.inc"
 #include "commands.inc"
+#include "create_command.inc"
 
 static const Mode A{1280,720,60,1}, B{1920,1080,60,1}, C{2560,1440,60,1}, D{1600,900,60,1};
 static const Modes ABCModes{A,B,C}, AB{A,B};
@@ -170,6 +174,7 @@ static void Reset() {
     monitorModes=ABCModes;apiAvailable=true;updateStatus.clear();submittedModes.clear();handleIndex.clear();
     failCreate.clear();failDestroy.clear();failArrival.clear();throwOnCreate.clear();nullCreateHandle.clear();
     updateCalls.clear();createCalls.clear();s_ClientGuidEdidMap.clear();s_MonitorHdrSettingsMap.clear();
+    numVirtualDisplays=1;submittedEdids.clear();
     requestedEdidResolution.clear();gKnownEdidIsBuiltIn=true;
     IndirectDeviceContext::s_KnownMonitorEdid=VddEdid::GetDefaultEdid(VddEdid::Profile::Legacy);
 }
@@ -266,17 +271,17 @@ int main() {
         VddEdid::ApplyNativeResolution(cached,true,L"3840x2160",{{3840,2160,60,1}});
         s_ClientGuidEdidMap[guid]={cached,true};
         requestedEdidResolution=L"default";
-        ctx.CreateMonitor(0,&guid);
+        ctx.CreateMonitor(0,&guid,1000,0.0001f,1000,0,0,requestedEdidResolution);
         Require(s_ClientGuidEdidMap.at(guid).data[56]==original[56],"cached 4K timing survived default selection");
         Require(ctx.DestroyMonitor(0),"could not remove monitor");
         requestedEdidResolution=L"3840x2160";
         monitorModes={{1920,1080,60,1},{3840,2160,60,1}};
-        ctx.CreateMonitor(0,&guid);
+        ctx.CreateMonitor(0,&guid,1000,0.0001f,1000,0,0,requestedEdidResolution);
         Require(s_ClientGuidEdidMap.at(guid).data[56]==0 && s_ClientGuidEdidMap.at(guid).data[58]==0xf2,
                 "recreated client did not get 4K timing");
         Require(ctx.DestroyMonitor(0),"could not remove 4K monitor");
         requestedEdidResolution=L"default";
-        ctx.CreateMonitor(0,&guid);
+        ctx.CreateMonitor(0,&guid,1000,0.0001f,1000,0,0,requestedEdidResolution);
         Require(s_ClientGuidEdidMap.at(guid).data[56]==original[56],"return to default failed");
     });
     test("failed_creation_does_not_cache_old_edid_source",[]{
@@ -287,7 +292,7 @@ int main() {
             // Distinguish the old template from the next reload's template.
             IndirectDeviceContext::s_KnownMonitorEdid[10]=42;
             (fault==0?failCreate:fault==1?failArrival:fault==2?throwOnCreate:nullCreateHandle).insert(0);
-            try {ctx.CreateMonitor(0,&guid);} catch(const runtime_error&) {if(fault!=2) throw;}
+            try {ctx.CreateMonitor(0,&guid,1000,0.0001f,1000,0,0,requestedEdidResolution);} catch(const runtime_error&) {if(fault!=2) throw;}
             Require(s_ClientGuidEdidMap.count(guid)==0,"failed creation retained an EDID without a registered monitor");
             failCreate.clear();failArrival.clear();throwOnCreate.clear();nullCreateHandle.clear();
             // Simulate reloading a different EDID source before retrying.
@@ -296,7 +301,7 @@ int main() {
             gKnownEdidIsBuiltIn=custom;
             requestedEdidResolution=L"3840x2160";
             monitorModes={{3840,2160,60,1}};
-            ctx.CreateMonitor(0,&guid);
+            ctx.CreateMonitor(0,&guid,1000,0.0001f,1000,0,0,requestedEdidResolution);
             const auto& cached=s_ClientGuidEdidMap.at(guid).data;
             Require(cached[10]==reloaded[10],"retry used the old source's cached EDID");
             if(custom)
@@ -312,7 +317,7 @@ int main() {
         const GUID guid{4,2,3,{4,5,6,7,8,9,10,11}};
         s_ClientGuidEdidMap[guid]={IndirectDeviceContext::s_KnownMonitorEdid,true};
         failCreate.insert(0);
-        ctx.CreateMonitor(0,&guid);
+        ctx.CreateMonitor(0,&guid,1000,0.0001f,1000,0,0,requestedEdidResolution);
         Require(s_ClientGuidEdidMap.count(guid)==1,"failure removed an existing cache entry");
     });
     test("failed_departure_retains_each_cached_edid_source_across_reload",[]{
@@ -321,7 +326,7 @@ int main() {
             const GUID guid{5,2,3,{4,5,6,7,8,9,10,11}};
             gKnownEdidIsBuiltIn=builtIn;
             const auto original=IndirectDeviceContext::s_KnownMonitorEdid;
-            ctx.CreateMonitor(0,&guid);
+            ctx.CreateMonitor(0,&guid,1000,0.0001f,1000,0,0,requestedEdidResolution);
             failDestroy.insert(0);
             Require(!ctx.DestroyMonitor(0),"departure fault did not retain the live monitor");
             // Reload from the other source while the old monitor/cache survives.
@@ -330,7 +335,7 @@ int main() {
             requestedEdidResolution=L"3840x2160";
             monitorModes={{3840,2160,60,1}};
             // A different connector may reuse the same client description.
-            ctx.CreateMonitor(1,&guid);
+            ctx.CreateMonitor(1,&guid,1000,0.0001f,1000,0,0,requestedEdidResolution);
             const auto& entry=s_ClientGuidEdidMap.at(guid);
             Require(entry.isBuiltIn==builtIn,"reload relabelled a cached EDID's source");
             if(builtIn)
@@ -339,7 +344,7 @@ int main() {
                 Require(equal(original.begin()+54,original.begin()+72,entry.data.begin()+54),"cached custom EDID received built-in timing");
             // An uncached client must use the new template's own source.
             const GUID fresh{6,2,3,{4,5,6,7,8,9,10,11}};
-            ctx.CreateMonitor(2,&fresh);
+            ctx.CreateMonitor(2,&fresh,1000,0.0001f,1000,0,0,requestedEdidResolution);
             const auto& newEntry=s_ClientGuidEdidMap.at(fresh);
             Require(newEntry.isBuiltIn==!builtIn && newEntry.data[10]==42,"new client did not use the reloaded source");
             if(builtIn)
@@ -353,7 +358,7 @@ int main() {
         gKnownEdidIsBuiltIn=false;requestedEdidResolution=L"3840x2160";
         monitorModes={{3840,2160,60,1}};
         const auto original=IndirectDeviceContext::s_KnownMonitorEdid;
-        ctx.CreateMonitor(0);
+        ctx.CreateMonitor(0,nullptr,1000,0.0001f,1000,0,0,requestedEdidResolution);
         Require(equal(original.begin()+54,original.begin()+72,
                       IndirectDeviceContext::s_KnownMonitorEdid.begin()+54),"custom timing changed");
     });
@@ -362,10 +367,65 @@ int main() {
         const GUID guid{2,2,3,{4,5,6,7,8,9,10,11}};
         requestedEdidResolution=L"3440x1440";
         monitorModes={{1920,1080,60,1},{3440,1440,60,1},{3840,2160,60,1}};
-        ctx.CreateMonitor(0,&guid);
+        ctx.CreateMonitor(0,&guid,1000,0.0001f,1000,0,0,requestedEdidResolution);
         const auto& edid=s_ClientGuidEdidMap.at(guid).data;
         Require(edid[56]+((edid[58]&240)<<4)==3440 && edid[59]+((edid[61]&240)<<4)==1440,
                 "selected ultrawide mode was replaced by an automatic maximum");
+    });
+    test("create_command_legacy_and_explicit_size",[]{
+        IndirectDeviceContext ctx;wrapper.pContext=&ctx;
+        monitorModes={{1920,1080,60,1},{3840,2160,60,1}};
+        wstring legacy=L"{00000001-0002-0003-0405-060708090a0b}:[800,0.01,600][34.5,19.4]";
+        HandleCreateMonitorCommand(legacy.data());
+        Require(submittedEdids.at(0)[56]==0x80,"legacy create changed the default EDID");
+        Require(ctx.m_MonitorCreationParams.at(0).widthCm==34.5f,"legacy physical size changed");
+        Require(ctx.DestroyMonitor(0),"could not remove legacy monitor");
+        wstring selected=legacy+L"[edid=3840x2160]";
+        HandleCreateMonitorCommand(selected.data());
+        Require(submittedEdids.at(0)[56]==0 && submittedEdids.at(0)[58]==0xf2,"wire option did not reach EDID");
+        const auto& params=ctx.m_MonitorCreationParams.at(0);
+        Require(params.edidNativeResolution==L"3840x2160" && params.maxNits==800 && params.widthCm==34.5f,
+                "native size displaced HDR or physical size parameters");
+        Require(ctx.DestroyMonitor(0),"could not remove selected monitor");
+        wstring noGuid=L":[1000,0.0001,1000][0,0][edid=3840x2160]";
+        HandleCreateMonitorCommand(noGuid.data());
+        Require(!ctx.m_MonitorCreationParams.at(0).hasClientGuid && submittedEdids.at(0)[58]==0xf2,
+                "native size without a client GUID was lost");
+    });
+    test("create_command_invalid_and_unsupported_sizes_fall_back",[]{
+        for(const wstring size:{L"4096x2160",L"0x1080",L"3840x2160junk",L"3440x1440",L"default",L""}) {
+            Reset();IndirectDeviceContext ctx;wrapper.pContext=&ctx;
+            monitorModes={{1920,1080,60,1},{3840,2160,60,1}};
+            wstring param=L":[1000,0.0001,1000][0,0][edid="+size+L"]";
+            HandleCreateMonitorCommand(param.data());
+            Require(submittedEdids.at(0)[56]==0x80 && submittedEdids.at(0)[58]==0x71,
+                    "invalid/unsupported create option did not retain 1080p");
+        }
+    });
+    test("create_command_requests_are_per_monitor",[]{
+        IndirectDeviceContext ctx;wrapper.pContext=&ctx;numVirtualDisplays=2;
+        monitorModes={{1920,1080,60,1},{3840,2160,60,1}};
+        wstring param=L"{00000001-0002-0003-0405-060708090a0b}:[1000,0.0001,1000][0,0][edid=3840x2160] "
+                      L"{00000002-0002-0003-0405-060708090a0b}:[1000,0.0001,1000]";
+        HandleCreateMonitorCommand(param.data());
+        Require(submittedEdids.at(0)[58]==0xf2 && submittedEdids.at(1)[58]==0x71,
+                "one monitor's EDID selection leaked into another request");
+    });
+    test("native_request_survives_recreation_failure_and_mode_list_changes",[]{
+        IndirectDeviceContext ctx;wrapper.pContext=&ctx;
+        monitorModes={{1920,1080,60,1},{3840,2160,60,1}};
+        wstring param=L"{00000001-0002-0003-0405-060708090a0b}:[1000,0.0001,1000][0,0][edid=3840x2160]";
+        HandleCreateMonitorCommand(param.data());
+        failCreate.insert(0);
+        Require(!ctx.RecreateMonitor(0),"injected recreate failure was ignored");
+        Require(ctx.m_MonitorCreationParams.at(0).edidNativeResolution==L"3840x2160",
+                "pending retry forgot the native size");
+        failCreate.clear();
+        Require(ctx.RecreateMonitor(0) && submittedEdids.at(0)[58]==0xf2,"retry lost the native timing");
+        monitorModes={{1920,1080,60,1}};
+        Require(ctx.RecreateMonitor(0) && submittedEdids.at(0)[58]==0x71,"removed native size did not fall back");
+        monitorModes={{1920,1080,60,1},{3840,2160,60,1}};
+        Require(ctx.RecreateMonitor(0) && submittedEdids.at(0)[58]==0xf2,"restored modes lost the native request");
     });
     cout<<"RESULT passed="<<passed<<" failed="<<failed<<'\n';
     return failed?1:0;

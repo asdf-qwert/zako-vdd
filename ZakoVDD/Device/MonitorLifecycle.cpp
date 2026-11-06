@@ -21,7 +21,7 @@ using namespace Microsoft::IndirectDisp;
 
 void CreateTargetMode2(IDDCX_TARGET_MODE2 &Mode, UINT Width, UINT Height, UINT VSyncNum, UINT VSyncDen);
 
-void IndirectDeviceContext::CreateMonitor(unsigned int index, const GUID *pClientGuid, float maxNits, float minNits, float maxFALL, float widthCm, float heightCm)
+void IndirectDeviceContext::CreateMonitor(unsigned int index, const GUID *pClientGuid, float maxNits, float minNits, float maxFALL, float widthCm, float heightCm, const std::wstring &edidNativeResolution)
 {
 	std::lock_guard<std::recursive_mutex> lock(m_monitorsMutex);
 	auto existingMonitor = m_Monitors.find(index);
@@ -127,7 +127,7 @@ void IndirectDeviceContext::CreateMonitor(unsigned int index, const GUID *pClien
 			monitorEdidIsBuiltIn = KnownMonitorEdidIsBuiltIn();
 		}
 
-		ApplyConfiguredEdidResolution(*pMonitorEdid, descriptionModes, monitorEdidIsBuiltIn);
+		ApplyRequestedEdidResolution(*pMonitorEdid, descriptionModes, monitorEdidIsBuiltIn, edidNativeResolution);
 		UpdateEdidHdrMetadata(*pMonitorEdid, maxNits, minNits, maxFALL);
 		UpdateEdidFreeSyncRange(*pMonitorEdid, freeSyncMinHz, freeSyncMaxHz);
 		if (widthCm > 0 || heightCm > 0)
@@ -206,7 +206,8 @@ void IndirectDeviceContext::CreateMonitor(unsigned int index, const GUID *pClien
 				minNits,
 				maxFALL,
 				widthCm,
-				heightCm};
+				heightCm,
+				edidNativeResolution};
 			m_MonitorDescriptionModes[index] = descriptionModes;
 			m_PendingMonitorModeRecreation.erase(index);
 
@@ -449,7 +450,8 @@ bool IndirectDeviceContext::RecreateMonitor(unsigned int index)
 	              params.minNits,
 	              params.maxFALL,
 	              params.widthCm,
-	              params.heightCm);
+	              params.heightCm,
+	              params.edidNativeResolution);
 
 	const bool recreated = m_Monitors.count(index) > 0;
 	if (!recreated)
