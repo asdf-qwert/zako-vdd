@@ -252,6 +252,7 @@ void UpdateEdidFreeSyncRange(vector<BYTE> &edid, BYTE minHz, BYTE maxHz)
 	VDD_LOG_WARNING("AMD FreeSync VSDB not found in EDID");
 }
 
+/** @brief Load a valid custom EDID or the profile fallback and report its actual source. */
 static vector<BYTE> LoadEdid(const string &filePath, bool &builtIn)
 {
 	builtIn = true;

@@ -255,7 +255,7 @@ void CheckLuminance(VddEdid::Profile profile) {
 }
 }
 
-/** @brief Run EDID regressions for both built-in profiles and Dolby variants. */
+/** @brief Run profile, luminance and native-timing checks and optionally export test EDID fixtures. */
 int main(int argc, char** argv) {
     try {
         const std::string outputDirectory = argc > 1 ? argv[1] : "";

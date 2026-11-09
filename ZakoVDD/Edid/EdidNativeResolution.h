@@ -20,6 +20,7 @@ enum class NativeResolutionResult {
 inline bool ParseNativeResolution(const std::wstring& value, int& width, int& height) {
     const auto separator = value.find(L'x');
     if (separator == value.npos || separator == 0 || separator + 1 == value.size()) return false;
+    /** @brief Parse one decimal dimension in range 1..4095 without arithmetic overflow. */
     auto dimension = [](const std::wstring& digits, int& result) {
         result = 0;
         for (wchar_t digit : digits) {

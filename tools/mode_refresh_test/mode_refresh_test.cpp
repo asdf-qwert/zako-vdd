@@ -86,6 +86,7 @@ static void UpdateEdidHdrMetadata(vector<BYTE>&,float,float,float) {}
 static void UpdateEdidFreeSyncRange(vector<BYTE>&,BYTE,BYTE) {}
 static void UpdateEdidPhysicalSize(vector<BYTE>&,float,float) {}
 static BYTE CalculateEdidChecksum(const vector<BYTE>&) { return 0; }
+/** @brief Capture submitted EDID and inject deterministic creation failures or missing handles. */
 static LONG IddCxMonitorCreate(void*,const IDARG_IN_MONITORCREATE* args,IDARG_OUT_MONITORCREATE* output) {
     const auto index=args->pMonitorInfo->ConnectorIndex;
     createCalls.push_back(index);
@@ -170,6 +171,7 @@ static Wrapper* WdfObjectGet_IndirectDeviceContextWrapper(void*) { return &wrapp
 static const Mode A{1280,720,60,1}, B{1920,1080,60,1}, C{2560,1440,60,1}, D{1600,900,60,1};
 static const Modes ABCModes{A,B,C}, AB{A,B};
 static void Require(bool ok,const char* message) { if(!ok) throw runtime_error(message); }
+/** @brief Reset mock API outcomes, submitted modes and EDID/source state between lifecycle cases. */
 static void Reset() {
     monitorModes=ABCModes;apiAvailable=true;updateStatus.clear();submittedModes.clear();handleIndex.clear();
     failCreate.clear();failDestroy.clear();failArrival.clear();throwOnCreate.clear();nullCreateHandle.clear();

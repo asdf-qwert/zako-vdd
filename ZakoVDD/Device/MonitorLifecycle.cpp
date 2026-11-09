@@ -96,6 +96,7 @@ void IndirectDeviceContext::CreateMonitor(unsigned int index, const GUID *pClien
 	struct PendingEdidCacheEntry
 	{
 		const GUID *guid = nullptr;
+		/** @brief Remove only a newly inserted client EDID when monitor creation does not commit. */
 		~PendingEdidCacheEntry()
 		{
 			if (guid != nullptr)
