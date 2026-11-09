@@ -3,7 +3,6 @@
 #include "DefaultEdid.h"
 #include "EdidLuminance.h"
 #include "EdidNativeResolution.h"
-#include "..\Config\DriverSettings.h"
 #include "..\Device\IndirectDeviceContext.h"
 #include "..\Device\MonitorState.h"
 #include "..\Logging\Logger.h"
